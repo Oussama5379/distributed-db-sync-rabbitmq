@@ -62,10 +62,13 @@ public class HeadOfficeConsumer {
                     salesSummary.add(row);
                 }
 
-                ctx.json(salesSummary);
+                String successJson = new com.google.gson.Gson().toJson(salesSummary);
+                ctx.result(successJson).contentType("application/json");
             } catch (SQLException e) {
                 e.printStackTrace();
-                ctx.status(500).json(Map.of("error", "Unable to fetch sales totals"));
+                
+                String errorJson = new com.google.gson.Gson().toJson(Map.of("error", "Unable to fetch sales totals"));
+                ctx.status(500).result(errorJson).contentType("application/json");
             }
         });
 

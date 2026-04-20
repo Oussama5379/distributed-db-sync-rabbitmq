@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Branch Office - Saisie des Ventes</title>
+    <style>
+      :root {
+        --bg-main: #f4f7fb;
+        --bg-card: #ffffff;
+        --text-main: #172235;
+        --text-muted: #63728a;
+        --border: #dbe3ef;
+        --primary: #1473e6;
+        --primary-strong: #0f5fc3;
+        --success-bg: #e9f8ef;
+        --success-text: #1f7a42;
+        --error-bg: #fdecec;
+        --error-text: #a62a2a;
+        --shadow: 0 16px 36px rgba(19, 39, 78, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+        background:
+          radial-gradient(
+            900px 500px at 5% 0%,
+            rgba(20, 115, 230, 0.14),
+            transparent 55%
+          ),
+          radial-gradient(
+            700px 460px at 95% 100%,
+            rgba(35, 199, 157, 0.16),
+            transparent 60%
+          ),
+          var(--bg-main);
+        color: var(--text-main);
+        display: grid;
+        place-items: center;
+        padding: 20px;
+      }
+
+      .card {
+        width: min(720px, 100%);
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        padding: 24px;
+        animation: fade-in 0.55s ease;
+      }
+
+      h1 {
+        margin: 0;
+        text-align: center;
+        font-size: clamp(1.3rem, 2.5vw, 2rem);
+      }
+
+      .subtitle {
+        margin: 8px 0 22px;
+        text-align: center;
+        color: var(--text-muted);
+      }
+
+      form {
+        display: grid;
+        gap: 14px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+
+      label {
+        font-weight: 600;
+        font-size: 0.92rem;
+      }
+
+      input {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 0.96rem;
+        color: var(--text-main);
+        background: #fcfdff;
+      }
+
+      input:focus {
+        outline: 2px solid rgba(20, 115, 230, 0.18);
+        border-color: var(--primary);
+      }
+
+      .actions {
+        display: flex;
+        justify-content: center;
+        margin-top: 4px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 10px;
+        background: linear-gradient(
+          135deg,
+          var(--primary),
+          var(--primary-strong)
+        );
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 0.98rem;
+        padding: 11px 26px;
+        cursor: pointer;
+        transition:
+          transform 0.15s ease,
+          box-shadow 0.15s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 22px rgba(20, 115, 230, 0.28);
+      }
+
+      .message {
+        min-height: 24px;
+        text-align: center;
+        font-weight: 600;
+        border-radius: 10px;
+        padding: 6px 10px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+      }
+
+      .message.visible {
+        opacity: 1;
+      }
+
+      .message.success {
+        background: var(--success-bg);
+        color: var(--success-text);
+      }
+
+      .message.error {
+        background: var(--error-bg);
+        color: var(--error-text);
+      }
+
+      @keyframes fade-in {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 700px) {
+        .card {
+          padding: 18px;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Branch Office - Saisie des Ventes</h1>
+      <p class="subtitle">
+        Enregistrez une vente locale puis synchronisez-la automatiquement.
+      </p>
+
+      <form id="saleForm">
+        <div class="grid">
+          <div class="field">
+            <label for="region">Region</label>
+            <input id="region" name="region" type="text" required />
+          </div>
+
+          <div class="field">
+            <label for="product">Product</label>
+            <input id="product" name="product" type="text" required />
+          </div>
+
+          <div class="field">
+            <label for="qty">Qty</label>
+            <input
+              id="qty"
+              name="qty"
+              type="number"
+              min="1"
+              step="1"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="cost">Cost</label>
+            <input
+              id="cost"
+              name="cost"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="amt">Amt</label>
+            <input
+              id="amt"
+              name="amt"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="tax">Tax</label>
+            <input
+              id="tax"
+              name="tax"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+            />
+          </div>
+
+          <div class="field" style="grid-column: 1 / -1">
+            <label for="total">Total</label>
+            <input
+              id="total"
+              name="total"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit">Synchroniser la vente</button>
+        </div>
+
+        <div
+          id="feedback"
+          class="message"
+          role="status"
+          aria-live="polite"
+        ></div>
+      </form>
+    </main>
+
+    <script>
+      const saleForm = document.getElementById("saleForm");
+      const feedback = document.getElementById("feedback");
+
+      function showMessage(text, type) {
+        feedback.textContent = text;
+        feedback.className = `message visible ${type}`;
+      }
+
+      saleForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const sale = {
+          region: document.getElementById("region").value.trim(),
+          product: document.getElementById("product").value.trim(),
+          qty: Number(document.getElementById("qty").value),
+          cost: Number(document.getElementById("cost").value),
+          amt: Number(document.getElementById("amt").value),
+          tax: Number(document.getElementById("tax").value),
+          total: Number(document.getElementById("total").value),
+        };
+
+        try {
+          const response = await fetch("http://localhost:8081/api/sales", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(sale),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          showMessage("Vente synchronisee avec succes !", "success");
+          alert("Vente synchronisee avec succes !");
+          saleForm.reset();
+        } catch (error) {
+          console.error("Erreur d'envoi", error);
+          showMessage(
+            "Echec de synchronisation. Verifiez le serveur Branch Office.",
+            "error",
+          );
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,71 +1,111 @@
 package com.tp.distributed;
+
 import com.google.gson.Gson;
 import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.MessageProperties;
-
-import io.github.cdimascio.dotenv.Dotenv;
+import io.javalin.Javalin;
+import io.javalin.http.staticfiles.Location;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.Map;
 
 public class BranchOfficeProducer {
+	private static final Gson GSON = new Gson();
+	private static final String RABBITMQ_HOST = "localhost";
+	private static final String QUEUE_NAME = "sales_sync_queue";
+
 	public static void main(String[] args) {
-		Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
+		Javalin app = Javalin.create(config ->
+				config.staticFiles.add(staticFileConfig -> {
+					staticFileConfig.hostedPath = "/";
+					staticFileConfig.directory = "/public";
+					staticFileConfig.location = Location.CLASSPATH;
+				})
+		).start(8081);
 
-		String dbUrl = dotenv.get("BO1_DB_URL");
-		String dbUser = dotenv.get("DB_USER");
-		String dbPassword = dotenv.get("DB_PASSWORD");
-		String rabbitmqHost = dotenv.get("RABBITMQ_HOST");
-		String queueName = dotenv.get("QUEUE_NAME");
+		app.post("/api/sales", ctx -> {
+			try {
+				Sale sale = GSON.fromJson(ctx.body(), Sale.class);
+				if (sale == null || isBlank(sale.getRegion()) || isBlank(sale.getProduct())) {
+					ctx.status(400).json(Map.of("error", "Donnees de vente invalides"));
+					return;
+				}
 
-		if (dbUrl == null || dbUser == null || dbPassword == null || rabbitmqHost == null || queueName == null) {
-			throw new IllegalStateException("Missing required environment variables in .env file.");
-		}
+				int generatedId;
+				String insertSql = "INSERT INTO Product_Sales "
+						+ "(sale_date, region, product, qty, cost, amt, tax, total, is_synced) "
+						+ "VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, 0)";
 
-		String selectSql = "SELECT id, sale_date, region, product, qty, cost, amt, tax, total, is_synced "
-				+ "FROM Product_Sales WHERE is_synced = false";
-		String updateSql = "UPDATE Product_Sales SET is_synced = true WHERE id = ?";
+				try (Connection dbConnection = DriverManager.getConnection("jdbc:mysql://localhost:3306/bo1_db", "root", "");
+						 PreparedStatement insertStatement = dbConnection.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
 
-		ConnectionFactory factory = new ConnectionFactory();
-		factory.setHost(rabbitmqHost);
-		Gson gson = new Gson();
+					insertStatement.setString(1, sale.getRegion());
+					insertStatement.setString(2, sale.getProduct());
+					insertStatement.setInt(3, sale.getQty());
+					insertStatement.setDouble(4, sale.getCost());
+					insertStatement.setDouble(5, sale.getAmt());
+					insertStatement.setDouble(6, sale.getTax());
+					insertStatement.setDouble(7, sale.getTotal());
+					insertStatement.executeUpdate();
 
-		try (java.sql.Connection dbConnection = DriverManager.getConnection(dbUrl, dbUser, dbPassword);
-			 PreparedStatement selectStatement = dbConnection.prepareStatement(selectSql);
-			 PreparedStatement updateStatement = dbConnection.prepareStatement(updateSql);
-			 Connection rabbitConnection = factory.newConnection();
-			 Channel channel = rabbitConnection.createChannel();
-			 ResultSet resultSet = selectStatement.executeQuery()) {
+					try (ResultSet generatedKeys = insertStatement.getGeneratedKeys()) {
+						if (!generatedKeys.next()) {
+							throw new IllegalStateException("Impossible de recuperer l'ID de la vente");
+						}
+						generatedId = generatedKeys.getInt(1);
+					}
+				}
 
-			channel.queueDeclare(queueName, true, false, false, null);
+				sale.setId(generatedId);
+				sale.setSale_date(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+				sale.setIs_synced(false);
 
-			while (resultSet.next()) {
-				Sale sale = new Sale(
-						resultSet.getInt("id"),
-						resultSet.getString("sale_date"),
-						resultSet.getString("region"),
-						resultSet.getString("product"),
-						resultSet.getInt("qty"),
-						resultSet.getDouble("cost"),
-						resultSet.getDouble("amt"),
-						resultSet.getDouble("tax"),
-						resultSet.getDouble("total"),
-						resultSet.getBoolean("is_synced")
-				);
+				ConnectionFactory factory = new ConnectionFactory();
+				factory.setHost(RABBITMQ_HOST);
 
-				String json = gson.toJson(sale);
-				channel.basicPublish("", queueName, MessageProperties.PERSISTENT_TEXT_PLAIN,
-						json.getBytes(StandardCharsets.UTF_8));
+				try (com.rabbitmq.client.Connection rabbitConnection = factory.newConnection();
+						 Channel channel = rabbitConnection.createChannel()) {
+					channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+					String saleJson = GSON.toJson(sale);
+					channel.basicPublish("", QUEUE_NAME, MessageProperties.PERSISTENT_TEXT_PLAIN,
+							saleJson.getBytes(StandardCharsets.UTF_8));
+				}
 
-				updateStatement.setInt(1, sale.getId());
-				updateStatement.executeUpdate();
+				String updateSql = "UPDATE Product_Sales SET is_synced = 1 WHERE id = ?";
+				try (Connection dbConnection = DriverManager.getConnection("jdbc:mysql://localhost:3306/bo1_db", "root", "");
+						 PreparedStatement updateStatement = dbConnection.prepareStatement(updateSql)) {
+					updateStatement.setInt(1, generatedId);
+					updateStatement.executeUpdate();
+				}
+				String successJson = GSON.toJson(Map.of(
+                        "message", "Vente synchronisee avec succes !",
+                        "id", generatedId
+                ));
+                ctx.status(200).result(successJson).contentType("application/json");
+
+			
+			} catch (Exception e) {
+				e.printStackTrace();
+				String errorJson = GSON.toJson(Map.of(
+                        "error", "Erreur lors de la synchronisation de la vente"
+                ));
+                ctx.status(500).result(errorJson).contentType("application/json");	
+			
 			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
+		});
+
+		System.out.println("Branch Office web server running on http://localhost:8081");
+	}
+
+	private static boolean isBlank(String value) {
+		return value == null || value.isBlank();
 	}
 }
